@@ -13,24 +13,19 @@ if (!isset($_SESSION['user_id'])) { header("Location: /"); exit; }
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat | Secure Social</title>
-    <!-- Lidhja me skedarin CSS me versionim -->
-    <link rel="stylesheet" href="assets/css/style.css?v=2">
+    <link rel="stylesheet" href="assets/css/style.css?v=3">
 </head>
 <body>
 
 <div class="chat-container">
-    <!-- Sidebar për Kontaktet -->
     <div class="sidebar">
         <div class="sidebar-header">
-            <h3>Welcome, <?php echo htmlspecialchars($_SESSION['username']); ?></h3>
+            <h3>Welcome, <span id="myUsername"><?php echo htmlspecialchars($_SESSION['username']); ?></span></h3>
             <button class="btn-logout" onclick="logout()">Logout</button>
         </div>
-        <div class="contact-list" id="contactList">
-            <!-- Kontaktet popullohen nga chat.js -->
-        </div>
+        <div class="contact-list" id="contactList"></div>
     </div>
 
-    <!-- Hapësira kryesore e Mesazheve -->
     <div class="chat-area">
         <div class="chat-header">
             <div class="contact-avatar" id="headerAvatar">?</div>
@@ -51,9 +46,8 @@ if (!isset($_SESSION['user_id'])) { header("Location: /"); exit; }
     </div>
 </div>
 
-<!-- Skriptet me ?v=2 për të detyruar shfletuesin të marrë kodin e ri -->
-<script src="assets/js/crypto.js?v=2"></script>
-<script src="assets/js/chat.js?v=2"></script>
+<script src="assets/js/crypto.js?v=3"></script>
+<script src="assets/js/chat.js?v=3"></script>
 
 <script>
     /**
