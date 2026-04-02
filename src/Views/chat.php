@@ -13,7 +13,8 @@ if (!isset($_SESSION['user_id'])) { header("Location: /"); exit; }
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat | Secure Social</title>
-    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- Lidhja me skedarin CSS me versionim -->
+    <link rel="stylesheet" href="assets/css/style.css?v=2">
 </head>
 <body>
 
@@ -50,9 +51,9 @@ if (!isset($_SESSION['user_id'])) { header("Location: /"); exit; }
     </div>
 </div>
 
-<!-- Këtu thërrasim VETËM chat.js -->
-<script src="assets/js/crypto.js"></script>
-<script src="assets/js/chat.js"></script>
+<!-- Skriptet me ?v=2 për të detyruar shfletuesin të marrë kodin e ri -->
+<script src="assets/js/crypto.js?v=2"></script>
+<script src="assets/js/chat.js?v=2"></script>
 
 <script>
     /**
