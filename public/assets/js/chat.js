@@ -6,12 +6,18 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Mbrojtja e Sigurisë: Ekzekutoje këtë skript VETËM nëse jemi brenda Chat Dashboard
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) {
+        return; // Ndalo ekzekutimin nëse jemi në faqen e Login-it
+    }
+
     let currentChatUserId = null;
     let currentSharedSecret = null;
     let allUsers = [];
     let myPrivateKey = null;
 
-    // --- FUNKSIONET NDIHMËSE TË DEKRIPTIMIT (TË KOPJUARA NGA APP.JS PËR RECOVERY) ---
+    // --- FUNKSIONET NDIHMËSE TË DEKRIPTIMIT ---
     async function deriveLocalKey(password, saltString) {
         const enc = new TextEncoder();
         const keyMaterial = await window.crypto.subtle.importKey(
@@ -36,18 +42,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
     }
 
-    // --- 1. MENAXHIMI I ÇELËSIT PRIVAT (ME RECOVERY MODE) ---
+    // --- 1. MENAXHIMI I ÇELËSIT PRIVAT ---
     const activePrivateKeyBase64 = sessionStorage.getItem('active_private_key');
     
     if (activePrivateKeyBase64) {
-        // Rasti Ideal: E gjetëm çelësin në session (psh menjëherë pas Login-it)
         const privKeyBytes = new Uint8Array(window.atob(activePrivateKeyBase64).split('').map(c => c.charCodeAt(0)));
         myPrivateKey = await window.crypto.subtle.importKey(
             "pkcs8", privKeyBytes, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]
         );
     } else {
-        // Rasti Recovery: Kemi sesion PHP, por s'kemi çelës në shfletues (psh bëmë refresh faqeje ose hapëm tab të ri)
-        // Marrim username-in nga titulli në Sidebar (Welcome, Emri)
         const usernameEl = document.querySelector('.sidebar-header h3');
         if (usernameEl) {
             const username = usernameEl.textContent.replace('Welcome, ', '').trim();
@@ -59,29 +62,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                     try {
                         const savedKeys = JSON.parse(savedKeysJson);
                         const localAesKey = await deriveLocalKey(password, username);
-                        myPrivateKey = await decryptPrivateKey(
-                            savedKeys.identityObj.ciphertext, 
-                            savedKeys.identityObj.iv, 
-                            localAesKey, "ECDH"
-                        );
+                        myPrivateKey = await decryptPrivateKey(savedKeys.identityObj.ciphertext, savedKeys.identityObj.iv, localAesKey, "ECDH");
                         
-                        // E ruajmë prapë për këtë tab
                         const exportedPriv = await window.crypto.subtle.exportKey("pkcs8", myPrivateKey);
                         const privBase64 = window.btoa(String.fromCharCode(...new Uint8Array(exportedPriv)));
                         sessionStorage.setItem('active_private_key', privBase64);
-                        
                     } catch (e) {
                         alert("Invalid password! Cannot open chat.");
-                        window.location.href = '/'; // E çojmë te login vetëm nëse gaboi passwordin
+                        fetch('/api/logout', { method: 'POST' }).then(() => window.location.href = '/');
                         return;
                     }
                 } else {
-                    window.location.href = '/';
+                    fetch('/api/logout', { method: 'POST' }).then(() => window.location.href = '/');
                     return;
                 }
             } else {
                 alert("Private Keys missing on this device. You must login again.");
-                window.location.href = '/';
+                fetch('/api/logout', { method: 'POST' }).then(() => window.location.href = '/');
                 return;
             }
         }
@@ -89,7 +86,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- 2. LOGJIKA E CHAT-IT ---
     const contactList = document.getElementById('contactList');
-    const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const btnSend = document.getElementById('btnSend');
     const currentChatUserEl = document.getElementById('currentChatUser');
