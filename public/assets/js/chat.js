@@ -2,7 +2,7 @@
  * Copyright Alen Pepa
  * All rights reserved.
  * 
- * Chat Dashboard Logic (E2EE & View Once)
+ * Chat Dashboard Logic (E2EE & View Once) with Secure Private Key
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -10,9 +10,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentSharedSecret = null;
     let allUsers = [];
 
-    if (!window.myKeys) {
-        window.myKeys = await CryptoApp.generateKeyPairs();
+    // 1. Marrim Çelësin Privat nga Sesioni i Shfletuesit (që e shkyçëm te app.js gjatë Login)
+    const activePrivateKeyBase64 = sessionStorage.getItem('active_private_key');
+    if (!activePrivateKeyBase64) {
+        alert("Security Error: Private Key not found in session. Please login again.");
+        window.location.href = '/'; // Dërgoje te faqja e login-it nëse i mungon çelësi
+        return;
     }
+
+    // E importojmë Çelësin Privat nga Base64 prapa në një CryptoKey Object
+    const privKeyBytes = new Uint8Array(window.atob(activePrivateKeyBase64).split('').map(c => c.charCodeAt(0)));
+    const myPrivateKey = await window.crypto.subtle.importKey(
+        "pkcs8", privKeyBytes, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]
+    );
 
     const contactList = document.getElementById('contactList');
     const chatMessages = document.getElementById('chatMessages');
@@ -49,8 +59,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentChatUserEl.textContent = user.username;
         chatMessages.innerHTML = '';
 
+        // Importojmë Public Key të marrësit dhe llogarisim Sekretin e Përbashkët (Shared Secret)
         const theirPublicKey = await CryptoApp.importPublicKeyFromBase64(user.public_identity_key);
-        currentSharedSecret = await CryptoApp.deriveSharedSecret(window.myKeys.identityKeyPair.privateKey, theirPublicKey);
+        currentSharedSecret = await CryptoApp.deriveSharedSecret(myPrivateKey, theirPublicKey);
 
         loadMessages(user.id);
     }
@@ -62,9 +73,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (data.success && currentSharedSecret) {
             chatMessages.innerHTML = '';
             for (let msg of data.messages) {
+                // Dekripto mesazhin (Ciphertext -> Plaintext)
                 const plainText = await CryptoApp.decryptMessage(msg.ciphertext, msg.nonce, currentSharedSecret);
                 
-                // Kontrollo nëse jam unë dërguesi (nga ID e fshehur në DOM ose një variabël global. Për thjeshtësi do krahasojmë emrin me otherUserId)
                 const isMine = (msg.sender_id != otherUserId);
                 
                 const msgDiv = document.createElement('div');
@@ -74,7 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (msg.view_once == 1) {
                     msgDiv.innerHTML += '<br><small style="color: #fbbf24; font-weight: bold; margin-top: 5px; display: inline-block;">(View Once 💣)</small>';
                     
-                    // Nëse erdhi nga tjetri, fshije në server pasi u hap
+                    // Nëse mesazhi erdhi nga tjetri, fshije përgjithmonë në server pasi e lexuam në ekran
                     if (!isMine) {
                         fetch(`/api/messages/consume/${msg.id}`, { method: 'POST' })
                             .then(response => console.log(`Message ${msg.id} consumed.`));
@@ -93,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const plainText = messageInput.value.trim();
         const viewOnceVal = chkViewOnce.checked ? 1 : 0;
         messageInput.value = '';
-        chkViewOnce.checked = false; // Resetoje mbrapa
+        chkViewOnce.checked = false;
 
         const msgDiv = document.createElement('div');
         msgDiv.className = 'message sent';
@@ -104,6 +115,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatMessages.appendChild(msgDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
+        // Enkripto mesazhin (Plaintext -> Ciphertext)
         const encrypted = await CryptoApp.encryptMessage(plainText, currentSharedSecret);
 
         await fetch('/api/messages/send', {
