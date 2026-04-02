@@ -6,10 +6,10 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Mbrojtja e Sigurisë: Ekzekutoje këtë skript VETËM nëse jemi brenda Chat Dashboard
+    // MBROJTJA: Ekzekutoje këtë skript VETËM nëse jemi brenda Chat Dashboard
     const chatMessages = document.getElementById('chatMessages');
     if (!chatMessages) {
-        return; // Ndalo ekzekutimin nëse jemi në faqen e Login-it
+        return; // Ndalon ekzekutimin nëse jemi në faqen e Login-it, kështu nuk nxjerr gabim kot
     }
 
     let currentChatUserId = null;
