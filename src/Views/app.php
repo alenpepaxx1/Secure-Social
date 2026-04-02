@@ -10,7 +10,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Social | End-to-End Encrypted</title>
-    <!-- Lidhja me skedarin CSS -->
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
@@ -34,7 +33,7 @@
                 <p class="switch-auth">Already have an account? <a href="#" id="showLogin">Login here</a></p>
             </form>
             
-            <!-- Forma e Hyrjes (Fshehur fillimisht) -->
+            <!-- Forma e Hyrjes -->
             <form id="loginForm" class="auth-form" style="display: none;">
                 <div class="input-group">
                     <label for="login_username">Username</label>
@@ -66,6 +65,7 @@
         });
     </script>
 
+    <!-- Kujdes: Këtu thërrasim VETËM app.js, jo chat.js -->
     <script src="assets/js/crypto.js"></script>
     <script src="assets/js/app.js"></script>
 </body>
