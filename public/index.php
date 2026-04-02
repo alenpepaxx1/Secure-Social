@@ -17,7 +17,9 @@ spl_autoload_register(function ($class) {
     if (strncmp($prefix, $class, $len) !== 0) return;
     $relative_class = substr($class, $len);
     $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-    if (file_exists($file)) require $file;
+    if (file_exists($file)) {
+        require $file;
+    }
 });
 
 header("Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
@@ -29,11 +31,25 @@ $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 
 if (str_starts_with($requestUri, '/api/')) {
+    // --- ROUTE E SHPËTIMIT: LOGOUT (Pranon GET dhe POST) ---
+    if ($requestUri === '/api/logout') {
+        session_unset();
+        session_destroy();
+        if ($method === 'GET') {
+            header("Location: /"); // Kthehu te faqja kryesore i pastruar nga gabimet
+            exit;
+        }
+        header('Content-Type: application/json');
+        http_response_code(200); 
+        echo json_encode(['success' => true]);
+        exit;
+    }
+
     header('Content-Type: application/json');
     
     if ($requestUri === '/api/register' && $method === 'POST') {
         $input = json_decode(file_get_contents('php://input'), true);
-        if (!$input) { http_response_code(400); echo json_encode(['error' => 'Invalid JSON input']); exit; }
+        if (!$input) { http_response_code(400); echo json_encode(['error' => 'Invalid JSON']); exit; }
         $auth = new \App\Api\AuthController();
         $auth->register($input);
         exit;
@@ -41,16 +57,9 @@ if (str_starts_with($requestUri, '/api/')) {
     
     if ($requestUri === '/api/login' && $method === 'POST') {
         $input = json_decode(file_get_contents('php://input'), true);
-        if (!$input) { http_response_code(400); echo json_encode(['error' => 'Invalid JSON input']); exit; }
+        if (!$input) { http_response_code(400); echo json_encode(['error' => 'Invalid JSON']); exit; }
         $auth = new \App\Api\AuthController();
         $auth->login($input);
-        exit;
-    }
-
-    if ($requestUri === '/api/logout' && $method === 'POST') {
-        session_unset();
-        session_destroy();
-        http_response_code(200); echo json_encode(['success' => true, 'message' => 'Logged out successfully']);
         exit;
     }
     
@@ -97,5 +106,5 @@ if (file_exists($viewFile)) {
     require $viewFile;
 } else {
     http_response_code(500);
-    echo "Error: View file not found. Please ensure {$viewFile} exists.";
+    echo "Error: View file not found.";
 }
