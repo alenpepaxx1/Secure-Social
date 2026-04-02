@@ -9,21 +9,85 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentChatUserId = null;
     let currentSharedSecret = null;
     let allUsers = [];
+    let myPrivateKey = null;
 
-    // 1. Marrim Çelësin Privat nga Sesioni i Shfletuesit (që e shkyçëm te app.js gjatë Login)
-    const activePrivateKeyBase64 = sessionStorage.getItem('active_private_key');
-    if (!activePrivateKeyBase64) {
-        alert("Security Error: Private Key not found in session. Please login again.");
-        window.location.href = '/'; // Dërgoje te faqja e login-it nëse i mungon çelësi
-        return;
+    // --- FUNKSIONET NDIHMËSE TË DEKRIPTIMIT (TË KOPJUARA NGA APP.JS PËR RECOVERY) ---
+    async function deriveLocalKey(password, saltString) {
+        const enc = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey(
+            "raw", enc.encode(password), { name: "PBKDF2" }, false, ["deriveBits", "deriveKey"]
+        );
+        const salt = enc.encode(saltString);
+        return window.crypto.subtle.deriveKey(
+            { name: "PBKDF2", salt: salt, iterations: 100000, hash: "SHA-256" },
+            keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+        );
     }
 
-    // E importojmë Çelësin Privat nga Base64 prapa në një CryptoKey Object
-    const privKeyBytes = new Uint8Array(window.atob(activePrivateKeyBase64).split('').map(c => c.charCodeAt(0)));
-    const myPrivateKey = await window.crypto.subtle.importKey(
-        "pkcs8", privKeyBytes, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]
-    );
+    async function decryptPrivateKey(encryptedBase64, ivBase64, localAesKey, keyType) {
+        const ciphertextBytes = new Uint8Array(window.atob(encryptedBase64).split('').map(c => c.charCodeAt(0)));
+        const ivBytes = new Uint8Array(window.atob(ivBase64).split('').map(c => c.charCodeAt(0)));
+        const decryptedBuffer = await window.crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: ivBytes }, localAesKey, ciphertextBytes
+        );
+        return await window.crypto.subtle.importKey(
+            "pkcs8", decryptedBuffer, { name: keyType, namedCurve: "P-256" }, true, 
+            keyType === "ECDH" ? ["deriveKey", "deriveBits"] : ["sign"]
+        );
+    }
 
+    // --- 1. MENAXHIMI I ÇELËSIT PRIVAT (ME RECOVERY MODE) ---
+    const activePrivateKeyBase64 = sessionStorage.getItem('active_private_key');
+    
+    if (activePrivateKeyBase64) {
+        // Rasti Ideal: E gjetëm çelësin në session (psh menjëherë pas Login-it)
+        const privKeyBytes = new Uint8Array(window.atob(activePrivateKeyBase64).split('').map(c => c.charCodeAt(0)));
+        myPrivateKey = await window.crypto.subtle.importKey(
+            "pkcs8", privKeyBytes, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]
+        );
+    } else {
+        // Rasti Recovery: Kemi sesion PHP, por s'kemi çelës në shfletues (psh bëmë refresh faqeje ose hapëm tab të ri)
+        // Marrim username-in nga titulli në Sidebar (Welcome, Emri)
+        const usernameEl = document.querySelector('.sidebar-header h3');
+        if (usernameEl) {
+            const username = usernameEl.textContent.replace('Welcome, ', '').trim();
+            const savedKeysJson = localStorage.getItem(`keys_${username}`);
+            
+            if (savedKeysJson) {
+                const password = prompt("Session expired. Please enter your Master Password to decrypt your messages:");
+                if (password) {
+                    try {
+                        const savedKeys = JSON.parse(savedKeysJson);
+                        const localAesKey = await deriveLocalKey(password, username);
+                        myPrivateKey = await decryptPrivateKey(
+                            savedKeys.identityObj.ciphertext, 
+                            savedKeys.identityObj.iv, 
+                            localAesKey, "ECDH"
+                        );
+                        
+                        // E ruajmë prapë për këtë tab
+                        const exportedPriv = await window.crypto.subtle.exportKey("pkcs8", myPrivateKey);
+                        const privBase64 = window.btoa(String.fromCharCode(...new Uint8Array(exportedPriv)));
+                        sessionStorage.setItem('active_private_key', privBase64);
+                        
+                    } catch (e) {
+                        alert("Invalid password! Cannot open chat.");
+                        window.location.href = '/'; // E çojmë te login vetëm nëse gaboi passwordin
+                        return;
+                    }
+                } else {
+                    window.location.href = '/';
+                    return;
+                }
+            } else {
+                alert("Private Keys missing on this device. You must login again.");
+                window.location.href = '/';
+                return;
+            }
+        }
+    }
+
+    // --- 2. LOGJIKA E CHAT-IT ---
     const contactList = document.getElementById('contactList');
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
@@ -59,7 +123,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentChatUserEl.textContent = user.username;
         chatMessages.innerHTML = '';
 
-        // Importojmë Public Key të marrësit dhe llogarisim Sekretin e Përbashkët (Shared Secret)
         const theirPublicKey = await CryptoApp.importPublicKeyFromBase64(user.public_identity_key);
         currentSharedSecret = await CryptoApp.deriveSharedSecret(myPrivateKey, theirPublicKey);
 
@@ -73,9 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (data.success && currentSharedSecret) {
             chatMessages.innerHTML = '';
             for (let msg of data.messages) {
-                // Dekripto mesazhin (Ciphertext -> Plaintext)
                 const plainText = await CryptoApp.decryptMessage(msg.ciphertext, msg.nonce, currentSharedSecret);
-                
                 const isMine = (msg.sender_id != otherUserId);
                 
                 const msgDiv = document.createElement('div');
@@ -84,11 +145,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 if (msg.view_once == 1) {
                     msgDiv.innerHTML += '<br><small style="color: #fbbf24; font-weight: bold; margin-top: 5px; display: inline-block;">(View Once 💣)</small>';
-                    
-                    // Nëse mesazhi erdhi nga tjetri, fshije përgjithmonë në server pasi e lexuam në ekran
                     if (!isMine) {
-                        fetch(`/api/messages/consume/${msg.id}`, { method: 'POST' })
-                            .then(response => console.log(`Message ${msg.id} consumed.`));
+                        fetch(`/api/messages/consume/${msg.id}`, { method: 'POST' });
                     }
                 }
                 
@@ -115,7 +173,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatMessages.appendChild(msgDiv);
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
-        // Enkripto mesazhin (Plaintext -> Ciphertext)
         const encrypted = await CryptoApp.encryptMessage(plainText, currentSharedSecret);
 
         await fetch('/api/messages/send', {
@@ -136,8 +193,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     loadUsers();
-    
-    // Auto-refresh mesazhe çdo 3 sekonda
     setInterval(() => {
         if (currentChatUserId) loadMessages(currentChatUserId);
     }, 3000);
