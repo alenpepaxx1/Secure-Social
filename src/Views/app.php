@@ -10,7 +10,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Secure Social | End-to-End Encrypted</title>
-    <link rel="stylesheet" href="/assets/css/style.css">
+    <!-- Lidhja me skedarin CSS -->
+    <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
     <div class="auth-container">
@@ -65,7 +66,7 @@
         });
     </script>
 
-    <script src="/assets/js/crypto.js"></script>
-    <script src="/assets/js/app.js"></script>
+    <script src="assets/js/crypto.js"></script>
+    <script src="assets/js/app.js"></script>
 </body>
 </html>
