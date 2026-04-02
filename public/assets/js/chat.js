@@ -6,18 +6,14 @@
  */
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // MBROJTJA: Ekzekutoje këtë skript VETËM nëse jemi brenda Chat Dashboard
     const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) {
-        return; // Ndalon ekzekutimin nëse jemi në faqen e Login-it, kështu nuk nxjerr gabim kot
-    }
+    if (!chatMessages) return; // Mbrojtje
 
     let currentChatUserId = null;
     let currentSharedSecret = null;
     let allUsers = [];
     let myPrivateKey = null;
 
-    // --- FUNKSIONET NDIHMËSE TË DEKRIPTIMIT ---
     async function deriveLocalKey(password, saltString) {
         const enc = new TextEncoder();
         const keyMaterial = await window.crypto.subtle.importKey(
@@ -42,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         );
     }
 
-    // --- 1. MENAXHIMI I ÇELËSIT PRIVAT ---
+    // --- MENAXHIMI I ÇELËSIT PRIVAT (PA INFINITE LOOP) ---
     const activePrivateKeyBase64 = sessionStorage.getItem('active_private_key');
     
     if (activePrivateKeyBase64) {
@@ -51,13 +47,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             "pkcs8", privKeyBytes, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]
         );
     } else {
-        const usernameEl = document.querySelector('.sidebar-header h3');
+        const usernameEl = document.getElementById('myUsername');
         if (usernameEl) {
-            const username = usernameEl.textContent.replace('Welcome, ', '').trim();
+            const username = usernameEl.textContent.trim();
             const savedKeysJson = localStorage.getItem(`keys_${username}`);
             
             if (savedKeysJson) {
-                const password = prompt("Session expired. Please enter your Master Password to decrypt your messages:");
+                const password = prompt("Session locked. Please enter your Master Password to decrypt your messages:");
                 if (password) {
                     try {
                         const savedKeys = JSON.parse(savedKeysJson);
@@ -68,7 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const privBase64 = window.btoa(String.fromCharCode(...new Uint8Array(exportedPriv)));
                         sessionStorage.setItem('active_private_key', privBase64);
                     } catch (e) {
-                        alert("Invalid password! Cannot open chat.");
+                        alert("Invalid password! Logging out securely.");
+                        // Vrit sesionin në PHP dhe bëj redirect
                         fetch('/api/logout', { method: 'POST' }).then(() => window.location.href = '/');
                         return;
                     }
@@ -84,7 +81,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- 2. LOGJIKA E CHAT-IT ---
+    // --- LOGJIKA E CHAT-IT ---
     const contactList = document.getElementById('contactList');
     const messageInput = document.getElementById('messageInput');
     const btnSend = document.getElementById('btnSend');
